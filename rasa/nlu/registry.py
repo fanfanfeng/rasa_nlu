@@ -40,7 +40,7 @@ if typing.TYPE_CHECKING:
     from rasa.nlu.config import RasaNLUModelConfig, RasaNLUModelConfig
 
 logger = logging.getLogger(__name__)
-
+from rasa.nlu.classifiers.embedding_intent_classifier_tf import EmbeddingIntentClassifierTf
 
 # Classes of all known components. If a new component should be added,
 # its class name should be listed here.
@@ -57,7 +57,7 @@ component_classes = [
     CountVectorsFeaturizer,
     # classifiers
     SklearnIntentClassifier, MitieIntentClassifier, KeywordIntentClassifier,
-    EmbeddingIntentClassifier
+    EmbeddingIntentClassifier,EmbeddingIntentClassifierTf
 ]
 
 # Mapping from a components name to its class to allow name based lookup.

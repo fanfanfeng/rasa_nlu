@@ -140,7 +140,7 @@ def train(nlu_config: Union[Text, RasaNLUModelConfig],
                                                 nlu_config.language)
     else:
         training_data = load_data(data, nlu_config.language)
-    interpreter = trainer.train(training_data, **kwargs)
+    interpreter = trainer.train(training_data, path=path,project=project,fixed_model_name=fixed_model_name,**kwargs)
 
     if path:
         persisted_path = trainer.persist(path,

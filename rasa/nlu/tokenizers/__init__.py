@@ -14,3 +14,6 @@ class Token(object):
 
     def get(self, prop, default=None):
         return self.data.get(prop, default)
+
+    def __str__(self):
+        return self.text
