@@ -21,7 +21,7 @@ from rasa.nlu.training_data import TrainingData
 from rasa.nlu.model import Metadata
 from rasa.nlu.training_data import Message
 
-from rasa.nlu.classifiers.models import classify_cnn_model
+from rasa.nlu.classifiers.tf_models import classify_cnn_model,base_classify_model
 from rasa.nlu.utils.vocabprocessor import VocabularyProcessor
 import os
 
@@ -95,10 +95,12 @@ class EmbeddingIntentClassifierTf(Component):
         classify_config = classify_cnn_model.CNNConfig()
         if kwargs['project'] == None:
             projectName = 'default'
+        else:
+            projectName = kwargs['project']
         classify_config.save_path = os.path.join(kwargs['path'],projectName,kwargs['fixed_model_name'])
         if not os.path.exists(classify_config.save_path):
             os.makedirs(classify_config.save_path)
-        self.vocabprocessor = VocabularyProcessor(classify_config.max_sentence_length)
+        self.vocabprocessor = VocabularyProcessor(classify_config.max_sentence_length,min_frequency=3)
         self.intent_dict,self.intent_list = self._create_intent_dict(training_data)
         if len(self.intent_dict) < 2:
             logger.error("Can not train an intent classifier. "
@@ -165,6 +167,10 @@ class EmbeddingIntentClassifierTf(Component):
         with open(os.path.join(model_dir,'vocab.txt'),'w',encoding='utf-8') as fwrite:
             for word in self.vocabprocessor.vocabulary_.get_vocab_list():
                 fwrite.write(word + "\n")
+
+        with open(os.path.join(model_dir,'opname.txt'),'w',encoding='utf-8') as fwrite:
+            fwrite.write("input:"+ base_classify_model.input_node_name + "\n")
+            fwrite.write("output:" + base_classify_model.output_node_logit + "\n")
 
         self.vocabprocessor.save(os.path.join(model_dir,'vocabprocessor.pkl'))
 
