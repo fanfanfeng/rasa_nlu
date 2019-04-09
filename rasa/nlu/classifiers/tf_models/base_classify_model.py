@@ -21,7 +21,8 @@ class ClassifyConfig(object):
                dropout_prob=0.2,
                initializer_range=0.02,
                 learning_rate=0.01,
-                 max_sentence_length=50
+                 max_sentence_length=50,
+                 min_freq= 3
                  ):
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
@@ -31,6 +32,7 @@ class ClassifyConfig(object):
         self.learning_rate = learning_rate
         self.max_sentence_length = max_sentence_length
         self.embedding_size = embedding_size
+        self.min_freq = min_freq
 
         self.batch_size = 300
         self.epochs = 30
@@ -84,7 +86,7 @@ class BaseClassifyModel(object):
                 grads_and_vars = optimizer.compute_gradients(loss)
                 trainOp = optimizer.apply_gradients(grads_and_vars,globalStep)
 
-            predict = tf.argmax(logits,axis=1,output_type=tf.int32,name=self.classify_config.output_node_name)
+            predict = tf.argmax(logits,axis=1,output_type=tf.int64,name=self.classify_config.output_node_name)
             accuracy = tf.reduce_mean(tf.cast(tf.equal(predict,inputY),dtype=tf.float32))
 
 
