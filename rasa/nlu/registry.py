@@ -21,6 +21,7 @@ from rasa.nlu.extractors.duckling_http_extractor import DucklingHTTPExtractor
 from rasa.nlu.extractors.entity_synonyms import EntitySynonymMapper
 from rasa.nlu.extractors.mitie_entity_extractor import MitieEntityExtractor
 from rasa.nlu.extractors.spacy_entity_extractor import SpacyEntityExtractor
+from rasa.nlu.extractors.tf_entity_extractor import TfEntityExtractor
 from rasa.nlu.featurizers.count_vectors_featurizer import \
     CountVectorsFeaturizer
 from rasa.nlu.featurizers.mitie_featurizer import MitieFeaturizer
@@ -51,7 +52,7 @@ component_classes = [
     MitieTokenizer, SpacyTokenizer, WhitespaceTokenizer, JiebaTokenizer,
     # extractors
     SpacyEntityExtractor, MitieEntityExtractor, CRFEntityExtractor,
-    DucklingHTTPExtractor, EntitySynonymMapper,
+    DucklingHTTPExtractor, EntitySynonymMapper,TfEntityExtractor,
     # featurizers
     SpacyFeaturizer, MitieFeaturizer, NGramFeaturizer, RegexFeaturizer,
     CountVectorsFeaturizer,

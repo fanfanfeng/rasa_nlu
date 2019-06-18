@@ -4,6 +4,7 @@ import logging
 import os
 from tqdm import tqdm
 from typing import List,Text,Any,Optional,Dict
+import shutil
 
 
 from rasa.nlu.classifiers import INTENT_RANKING_LENGTH
@@ -21,17 +22,21 @@ from rasa.nlu.training_data import TrainingData
 from rasa.nlu.model import Metadata
 from rasa.nlu.training_data import Message
 
-from rasa.nlu.classifiers.tf_models import classify_cnn_model,base_classify_model
-from rasa.nlu.utils.tfrecord_api import _int64_feature,_bytes_feature
+from rasa.nlu.classifiers.tf_models import classify_cnn_model,constant
+from rasa.nlu.classifiers.tf_models.base_classify_model import ClassifyConfig
+from rasa.nlu.classifiers.tf_utils import data_utils,data_process
 import os
 
 _START_VOCAB = ['_PAD', '_GO', "_EOS", '<UNK>']
 class EmbeddingIntentClassifierTf(Component):
-    name = 'intent_classifier_tf_embedding'
+    name = 'EmbeddingIntentClassifierTf'
 
     provides = ['intent','intent_ranking']
 
-    requires = ['text_features']
+    requires = []
+
+
+
 
     @classmethod
     def required_packages(cls):
@@ -105,95 +110,52 @@ class EmbeddingIntentClassifierTf(Component):
 
 
 
-    def make_tfrecord_files(self, training_data, intent_dict,classify_config):
-        X = [[token.text for token in e.data.get('tokens')] for e in training_data.intent_examples]
-        intents_for_X = [intent_dict[e.get('intent')] for e in training_data.intent_examples]
-        self.vocabulary,self.vocab_list = self._create_vocab_dict(training_data,classify_config.min_freq)
-
-        # tfrecore 文件写入
-        tfrecord_save_path = os.path.join(classify_config.save_path,"train.tfrecord")
-        tfrecord_writer = tf.python_io.TFRecordWriter(tfrecord_save_path)
-        for sentence,intent in zip(X,intents_for_X):
-            sentence_ids = self.pad_sentence(sentence,classify_config.max_sentence_length,self.vocabulary)
-            #sentence_ids_string = np.array(sentence_ids).tostring()
-            train_feature_item = tf.train.Example(features=tf.train.Features(feature={
-                'label': _int64_feature(intent),
-                'sentence':_int64_feature(sentence_ids,need_list=False)
-            }))
-            tfrecord_writer.write(train_feature_item.SerializeToString())
-        tfrecord_writer.close()
 
 
-    def input_fn(self, classify_config, shuffle_num, mode,epochs):
-        """
-         build tf.data set for input pipeline
-
-        :param classify_config: classify config dict
-        :param shuffle_num: type int number , random select the data
-        :param mode: type string ,tf.estimator.ModeKeys.TRAIN or tf.estimator.ModeKeys.PREDICT
-        :return: set() with type of (tf.data , and labels)
-        """
-        def parse_single_tfrecord(serializer_item):
-            features = {
-                'label': tf.FixedLenFeature([],tf.int64),
-                'sentence' : tf.FixedLenFeature([classify_config.max_sentence_length],tf.int64)
-            }
-
-            features_var = tf.parse_single_example(serializer_item,features)
-
-            labels = tf.cast(features_var['label'],tf.int64)
-            #sentence = tf.decode_raw(features_var['sentence'],tf.uint8)
-            sentence = tf.cast(features_var['sentence'],tf.int64)
-            return sentence,labels
-
-
-
-        tf_record_filename = os.path.join(classify_config.save_path,'train.tfrecord')
-        if not os.path.exists(tf_record_filename):
-            raise FileNotFoundError("tfrecord not found")
-        tf_record_reader = tf.data.TFRecordDataset(tf_record_filename)
-
-
-        if mode == tf.estimator.ModeKeys.TRAIN:
-            dataset = tf_record_reader.map(parse_single_tfrecord).shuffle(shuffle_num).batch(classify_config.batch_size).repeat(epochs)
-        else:
-            dataset = tf_record_reader.map(parse_single_tfrecord).batch(classify_config.batch_size)
-        iterator = dataset.make_one_shot_iterator()
-        data, labels = iterator.get_next()
-        data = tf.reshape(data,[-1,classify_config.max_sentence_length])
-        return data, labels
 
     def train(self,training_data,cfg=None,**kwargs):
-        classify_config = classify_cnn_model.CNNConfig()
-        if kwargs['project'] == None:
-            projectName = 'default'
+        class component_config_bject:
+            def __init__(self,dict):
+                self.__dict__.update(dict)
+
+        component_config_bject = component_config_bject(self.component_config)
+        if not os.path.exists(component_config_bject.output_path):
+            os.mkdir(component_config_bject.output_path)
+
+
+        if component_config_bject.use_bert:
+            # bert_make_tfrecord_files(argument_dict)
+            # bert_train(argument_dict)
+            pass
         else:
-            projectName = kwargs['project']
-        classify_config.save_path = os.path.join(kwargs['path'],projectName,kwargs['fixed_model_name'])
-        if not os.path.exists(classify_config.save_path):
-            os.makedirs(classify_config.save_path)
-        self.intent_dict,self.intent_list = self._create_intent_dict(training_data)
-        if len(self.intent_dict) < 2:
-            logger.error("Can not train an intent classifier. "
-                         "Need at least 2 different classes. "
-                         "Skipping training of intent classifier.")
-            return
+            data_utils.make_tfrecord_files(component_config_bject)
 
-        self.inv_intent_dict = {v:k for k,v in self.intent_dict.items()}
-        classify_config.label_nums = len(self.intent_dict.keys())
+        if component_config_bject.data_type == 'default':
+            data_processer = data_process.NormalData(component_config_bject.origin_data, output_path=component_config_bject.output_path)
+        else:
+            data_processer = data_process.RasaData(component_config_bject.origin_data, output_path=component_config_bject.output_path)
+        classify_config = ClassifyConfig(vocab_size=None)
+        classify_config.output_path = component_config_bject.output_path
+        classify_config.max_sentence_length = component_config_bject.max_sentence_len
+        if not os.path.exists(classify_config.output_path):
+            os.makedirs(classify_config.output_path)
 
-        self.make_tfrecord_files(training_data,self.intent_dict,classify_config)
-        classify_config.vocab_size = len(self.vocabulary.keys())
+        vocab, self.vocab_list, self.intent_list = data_processer.load_vocab_and_intent()
 
-        os.environ["CUDA_VISIBLE_DEVICES"] = classify_config.CUDA_VISIBLE_DEVICES
+        classify_config.vocab_size = len(self.vocab_list)
+        classify_config.num_tags = len(self.intent_list)
+
+        os.environ["CUDA_VISIBLE_DEVICES"] = component_config_bject.device_map
         with tf.Graph().as_default():
-            training_input_x,training_input_y = self.input_fn(classify_config,
-                                                              shuffle_num=500000,
-                                                              mode=tf.estimator.ModeKeys.TRAIN,
-                                                              epochs=classify_config.epochs)
+            training_input_x, training_input_y = data_utils.input_fn(os.path.join(classify_config.output_path, "train.tfrecord"),
+                                                          classify_config.batch_size,
+                                                          classify_config.max_sentence_length,
+                                                          mode=tf.estimator.ModeKeys.TRAIN)
 
-            self.classify_model = classify_cnn_model.ClassifyCnnModel(classify_config)
-            self.classify_model.train(training_input_x,training_input_y)
+            classify_model = classify_cnn_model.ClassifyCnnModel(classify_config)
+            classify_model.train(training_input_x, training_input_y)
+
+            self.component_config['pb_path'] = classify_model.make_pb_file(classify_config.output_path)
 
 
 
@@ -213,13 +175,14 @@ class EmbeddingIntentClassifierTf(Component):
             X_ids = np.array(self.pad_sentence(X,50,self.vocabulary)).reshape((1,50))
 
             intent_pre = self.sess.run(self.output_node,feed_dict={self.input_node:X_ids})
+            intent_pre = intent_pre.tolist()
             intent_ids = np.argmax(intent_pre,axis=1)
 
             # if X contains all zeros do not predict some label
-            if intent_ids.size > 0:
+            if len(intent_ids) > 0:
                 intent = {"name": self.inv_intent_dict[intent_ids[0]],
                           "confidence": 1}
-                intent_pre = [round(val,2) for val in intent_pre[0]]
+                intent_pre = [float(round(val,2))for val in intent_pre[0]]
                 ranking = list(zip(intent_pre, self.intent_list))
                 intent_ranking = [{"name": intent_name,
                                    "confidence": score}
@@ -229,21 +192,24 @@ class EmbeddingIntentClassifierTf(Component):
         message.set("intent_ranking", intent_ranking, add_to_output=True)
 
     def persist(self,filename,model_dir):
-        with open(os.path.join(model_dir,'label.txt'),'w',encoding='utf-8') as fwrite:
+        save_model_path = os.path.join(model_dir, self.name)
+        if not os.path.exists(save_model_path):
+            os.mkdir(save_model_path)
+        with open(os.path.join(save_model_path,'label.txt'),'w',encoding='utf-8') as fwrite:
             for label in self.intent_list:
                 fwrite.write(label + "\n")
 
-        with open(os.path.join(model_dir,'vocab.txt'),'w',encoding='utf-8') as fwrite:
+        with open(os.path.join(save_model_path,'vocab.txt'),'w',encoding='utf-8') as fwrite:
             for word in self.vocab_list:
                 fwrite.write(word + "\n")
 
-        with open(os.path.join(model_dir,'opname.txt'),'w',encoding='utf-8') as fwrite:
-            fwrite.write("input:"+ base_classify_model.input_node_name + "\n")
-            fwrite.write("output:" + base_classify_model.output_node_logit + "\n")
+        with open(os.path.join(save_model_path,'opname.txt'),'w',encoding='utf-8') as fwrite:
+            fwrite.write("input:"+ constant.INPUT_NODE_NAME + "\n")
+            fwrite.write("output:" + constant.OUTPUT_NODE_LOGIT + "\n")
 
-
-        model_pb = self.classify_model.make_pb_file(model_dir)
-        return {"classifier_file":model_pb}
+        save_pb_path = os.path.join(save_model_path,'classify.pb')
+        shutil.copy(self.component_config['pb_path'],save_pb_path)
+        return {"classifier_file":save_pb_path}
 
     @classmethod
     def load(cls,
@@ -257,17 +223,18 @@ class EmbeddingIntentClassifierTf(Component):
 
         #meta = model_metadata.for_component(cls.name)
         if model_dir:
-            pb_file_path = os.path.join(model_dir,'classify.pb')
+            save_model_path = os.path.join(model_dir, cls.name)
+            pb_file_path = os.path.join(save_model_path,'classify.pb')
             sess,input_node,output_node = classify_cnn_model.ClassifyCnnModel.load_model_from_pb(pb_file_path)
 
             intent_list = []
-            if os.path.exists(os.path.join(model_dir,'label.txt')):
-                with open(os.path.join(model_dir,'label.txt'),'r',encoding='utf-8') as fr:
+            if os.path.exists(os.path.join(save_model_path,'label.txt')):
+                with open(os.path.join(save_model_path,'label.txt'),'r',encoding='utf-8') as fr:
                     for line in fr:
                         intent_list.append(line.strip())
 
             vocabulary_list = []
-            with open(os.path.join(model_dir, 'vocab.txt'), 'r', encoding='utf-8') as fr:
+            with open(os.path.join(save_model_path, 'vocab.txt'), 'r', encoding='utf-8') as fr:
                 for line in fr:
                     vocabulary_list.append(line.strip())
             return EmbeddingIntentClassifierTf(component_config=meta,vocabulary_list=vocabulary_list,intent_list=intent_list,sess=sess,input_node=input_node,output_node=output_node)
