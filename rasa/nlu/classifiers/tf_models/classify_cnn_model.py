@@ -10,8 +10,8 @@ import os
 
 
 class ClassifyCnnModel(BaseClassifyModel):
-    def __init__(self,classify_config):
-        BaseClassifyModel.__init__(self,classify_config)
+    def __init__(self,params):
+        BaseClassifyModel.__init__(self,params)
         self.num_filters = 128
         self.filter_sizes = [2, 3, 4, 5]
 
@@ -26,7 +26,7 @@ class ClassifyCnnModel(BaseClassifyModel):
             # 初始化权重矩阵和偏置
             conv = layers.conv2d(inputs=input_embedding_expand,
                                  num_outputs=self.num_filters,
-                                 kernel_size=[filterSize,self.embedding_size],
+                                 kernel_size=[filterSize,self.params.embedding_size],
                                  stride=1,
                                  padding='VALID',
                                  scope='conv_'+str(i),
@@ -34,7 +34,7 @@ class ClassifyCnnModel(BaseClassifyModel):
             # 池化层，最大池化，池化是对卷积后的序列取一个最大值
             pooled = layers.max_pool2d(
                 conv,
-                kernel_size=[self.max_sentence_length - filterSize + 1,1],
+                kernel_size=[self.params.max_sentence_length - filterSize + 1,1],
                 stride=1,
                 padding='VALID',
                 scope='pool_'+ str(i)
@@ -55,7 +55,7 @@ class ClassifyCnnModel(BaseClassifyModel):
         h_dense = tf.layers.dense(self.h_drop, numFilterTotal, activation=tf.nn.tanh, use_bias=True)
 
         with tf.name_scope("output"):
-            logits = tf.layers.dense(h_dense,self.num_tags)
+            logits = tf.layers.dense(h_dense,self.params.num_tags)
 
         return logits
 
@@ -68,7 +68,7 @@ class ClassifyCnnModel(BaseClassifyModel):
 
             sess = tf.Session(config=session_conf)
             with sess.as_default():
-                input_x = tf.placeholder(dtype=tf.int32,shape=(None,self.max_sentence_length),name=constant.INPUT_NODE_NAME)
+                input_x = tf.placeholder(dtype=tf.int32,shape=(None,self.params.max_sentence_length),name=constant.INPUT_NODE_NAME)
                 dropout = tf.placeholder_with_default(1.0,shape=(), name='dropout')
                 logits = self.create_model(input_x, dropout)
                 logits_output = tf.nn.softmax(logits,name=constant.OUTPUT_NODE_LOGIT)
@@ -87,6 +87,4 @@ class ClassifyCnnModel(BaseClassifyModel):
                 with tf.gfile.GFile(os.path.join(model_dir,'classify.pb'),'wb') as gf:
                     gf.write(output_graph_with_weight.SerializeToString())
         return os.path.join(model_dir,'classify.pb')
-
-
 

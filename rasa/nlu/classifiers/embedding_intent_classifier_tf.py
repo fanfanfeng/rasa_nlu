@@ -23,9 +23,11 @@ from rasa.nlu.model import Metadata
 from rasa.nlu.training_data import Message
 
 from rasa.nlu.classifiers.tf_models import classify_cnn_model,constant
-from rasa.nlu.classifiers.tf_models.base_classify_model import ClassifyConfig
 from rasa.nlu.classifiers.tf_utils import data_utils,data_process
+from sklearn.metrics import f1_score
 import os
+import tqdm
+from rasa.nlu.classifiers.tf_models.params import Params,TestParams
 
 _START_VOCAB = ['_PAD', '_GO', "_EOS", '<UNK>']
 class EmbeddingIntentClassifierTf(Component):
@@ -110,52 +112,93 @@ class EmbeddingIntentClassifierTf(Component):
 
 
 
+    def norm_train(self,params):
+        if params.data_type == 'default':
+            data_processer = data_process.NormalData(params.origin_data, output_path=params.output_path)
+        else:
+            data_processer = data_process.RasaData(params.origin_data, output_path=params.output_path)
+        if not os.path.exists(params.output_path):
+            os.makedirs(params.output_path)
 
+        vocab, self.vocab_list, intent = data_processer.load_vocab_and_intent()
+        self.intent_list = intent
+        params.vocab_size = len(self.vocab_list)
+        params.num_tags = len(intent)
+
+        os.environ["CUDA_VISIBLE_DEVICES"] = params.device_map
+        with tf.Graph().as_default():
+            session_conf = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
+            session_conf.gpu_options.allow_growth = True
+            session_conf.gpu_options.per_process_gpu_memory_fraction = 0.9
+
+            sess = tf.Session(config=session_conf)
+            with sess.as_default():
+                training_input_x, training_input_y = data_utils.input_fn(os.path.join(params.output_path, "train.tfrecord"),
+                                                              params.batch_size,
+                                                              params.max_sentence_length,
+                                                              mode=tf.estimator.ModeKeys.TRAIN)
+
+                classify_model = classify_cnn_model.ClassifyCnnModel(params)
+                loss, global_step, train_op, merger_op = classify_model.make_train(training_input_x, training_input_y)
+
+                # 初始化所有变量
+                saver = tf.train.Saver(tf.global_variables(), max_to_keep=5)
+                classify_model.model_restore(sess, saver)
+
+                best_f1 = 0
+                for _ in tqdm.tqdm(range(params.total_train_steps), desc="steps", miniters=10):
+                    sess_loss, steps, _ = sess.run([loss, global_step, train_op])
+
+                    if steps % params.evaluate_every_steps == 0:
+                        test_input_x, test_input_y = data_utils.input_fn(os.path.join(params.output_path, "test.tfrecord"),
+                                                              params.batch_size,
+                                                              params.max_sentence_length,
+                                                              mode=tf.estimator.ModeKeys.EVAL)
+                        loss_test, predict_test = classify_model.make_test(test_input_x, test_input_y)
+
+                        predict_var = []
+                        train_y_var = []
+                        loss_total = 0
+                        num_batch = 0
+                        try:
+                            while 1:
+                                loss_, predict_, test_input_y_ = sess.run([loss_test, predict_test, test_input_y])
+                                loss_total += loss_
+                                num_batch += 1
+                                predict_var += predict_.tolist()
+                                train_y_var += test_input_y_.tolist()
+                        except tf.errors.OutOfRangeError:
+                            print("eval over")
+                        if num_batch > 0:
+
+                            f1_val = f1_score(train_y_var, predict_var, average='micro')
+                            print("current step:%s ,loss:%s , f1 :%s" % (steps, loss_total / num_batch, f1_val))
+
+                            if f1_val >= best_f1:
+                                saver.save(sess, params.model_path, steps)
+                                print("new best f1: %s ,save to dir:%s" % (f1_val, params.output_path))
+                                best_f1 = f1_val
+
+                self.component_config['pb_path'] = classify_model.make_pb_file(params.output_path)
 
 
     def train(self,training_data,cfg=None,**kwargs):
-        class component_config_bject:
-            def __init__(self,dict):
-                self.__dict__.update(dict)
 
-        component_config_bject = component_config_bject(self.component_config)
-        if not os.path.exists(component_config_bject.output_path):
-            os.mkdir(component_config_bject.output_path)
+        params = Params()
+        params.update_dict(self.component_config)
+        if not os.path.exists(params.output_path):
+            os.mkdir(params.output_path)
 
 
-        if component_config_bject.use_bert:
+        if params.use_bert:
             # bert_make_tfrecord_files(argument_dict)
             # bert_train(argument_dict)
             pass
         else:
-            data_utils.make_tfrecord_files(component_config_bject)
+            data_utils.make_tfrecord_files(params)
+            self.norm_train(params)
 
-        if component_config_bject.data_type == 'default':
-            data_processer = data_process.NormalData(component_config_bject.origin_data, output_path=component_config_bject.output_path)
-        else:
-            data_processer = data_process.RasaData(component_config_bject.origin_data, output_path=component_config_bject.output_path)
-        classify_config = ClassifyConfig(vocab_size=None)
-        classify_config.output_path = component_config_bject.output_path
-        classify_config.max_sentence_length = component_config_bject.max_sentence_len
-        if not os.path.exists(classify_config.output_path):
-            os.makedirs(classify_config.output_path)
 
-        vocab, self.vocab_list, self.intent_list = data_processer.load_vocab_and_intent()
-
-        classify_config.vocab_size = len(self.vocab_list)
-        classify_config.num_tags = len(self.intent_list)
-
-        os.environ["CUDA_VISIBLE_DEVICES"] = component_config_bject.device_map
-        with tf.Graph().as_default():
-            training_input_x, training_input_y = data_utils.input_fn(os.path.join(classify_config.output_path, "train.tfrecord"),
-                                                          classify_config.batch_size,
-                                                          classify_config.max_sentence_length,
-                                                          mode=tf.estimator.ModeKeys.TRAIN)
-
-            classify_model = classify_cnn_model.ClassifyCnnModel(classify_config)
-            classify_model.train(training_input_x, training_input_y)
-
-            self.component_config['pb_path'] = classify_model.make_pb_file(classify_config.output_path)
 
 
 
