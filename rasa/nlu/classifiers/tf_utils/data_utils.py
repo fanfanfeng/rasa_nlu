@@ -102,7 +102,7 @@ def make_tfrecord_files(params):
         tfrecord_train_writer.close()
         tfrecord_test_writer.close()
 
-def input_fn(input_file, batch_size,max_sentence_length, mode=tf.estimator.ModeKeys.TRAIN):
+def input_fn(input_file, batch_size,max_sentence_length,shuffle_num, mode=tf.estimator.ModeKeys.TRAIN):
     """
      build tf.data set for input pipeline
 
@@ -133,7 +133,7 @@ def input_fn(input_file, batch_size,max_sentence_length, mode=tf.estimator.ModeK
     if mode == tf.estimator.ModeKeys.TRAIN:
         print(mode)
         tf_record_reader = tf_record_reader.repeat()
-        tf_record_reader = tf_record_reader.shuffle(buffer_size=batch_size*1000)
+        tf_record_reader = tf_record_reader.shuffle(buffer_size=shuffle_num)
     dataset = tf_record_reader.apply(tf.data.experimental.map_and_batch(lambda record:parse_single_tfrecord(record),
                                                    batch_size,num_parallel_calls=8))
 

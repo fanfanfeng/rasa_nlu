@@ -136,6 +136,7 @@ class EmbeddingIntentClassifierTf(Component):
                 training_input_x, training_input_y = data_utils.input_fn(os.path.join(params.output_path, "train.tfrecord"),
                                                               params.batch_size,
                                                               params.max_sentence_length,
+                                                                         params.shuffle_num,
                                                               mode=tf.estimator.ModeKeys.TRAIN)
 
                 classify_model = classify_cnn_model.ClassifyCnnModel(params)
@@ -153,6 +154,7 @@ class EmbeddingIntentClassifierTf(Component):
                         test_input_x, test_input_y = data_utils.input_fn(os.path.join(params.output_path, "test.tfrecord"),
                                                               params.batch_size,
                                                               params.max_sentence_length,
+                                                                         params.shuffle_num,
                                                               mode=tf.estimator.ModeKeys.EVAL)
                         loss_test, predict_test = classify_model.make_test(test_input_x, test_input_y)
 

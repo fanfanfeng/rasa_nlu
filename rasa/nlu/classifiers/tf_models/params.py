@@ -21,6 +21,7 @@ class TestParams:
     # 训练参数
     #model_path = os.path.join(output_path, 'model_ckpt/tf')
     total_train_steps = 100
+    shuffle_num = 10
     batch_size = 10
     dropout_prob = 0.7
     learning_rate = 0.0001
@@ -59,6 +60,7 @@ class Params:
     # 训练参数
     #model_path = os.path.join(output_path, 'model_ckpt/tf')
     total_train_steps = 100000
+    shuffle_num = 100000
     batch_size = 256
     dropout_prob = 0.7
     learning_rate = 0.0001
