@@ -13,77 +13,9 @@ import json
 import copy
 
 
-class NerConfig(object):
-    """Configuration for `NerModel`."""
-    def __init__(self,
-                 vocab_size,
-                 num_tags=None,
-                 hidden_size=256,
-                 embedding_size=256,
-                 dropout_prob=0.7,
-                 max_seq_length=20,
-                 learning_rate=0.0001,
-                 evaluate_every_steps=20,
-                 batch_size=256
-                 ):
-        """Constructs NerConfig.
-
-        """
-        self.vocab_size = vocab_size
-        self.num_tags = num_tags
-        self.hidden_size = hidden_size
-        self.dropout_prob = dropout_prob
-        self.embedding_size = embedding_size
-        self.max_seq_length = max_seq_length
-        self.learning_rate = learning_rate
-        self.evaluate_every_steps = evaluate_every_steps
-        self.batch_size = batch_size
-        self.train_step_total = 800000
-
-
-
-
-    @classmethod
-    def from_dict(cls, json_object):
-        """Constructs a `BertConfig` from a Python dictionary of parameters."""
-        config = NerConfig(vocab_size=None)
-        for (key, value) in six.iteritems(json_object):
-            config.__dict__[key] = value
-        return config
-
-    @classmethod
-    def from_json_file(cls, json_file):
-        """Constructs a `BertConfig` from a json file of parameters."""
-        with tf.gfile.GFile(json_file, "r") as reader:
-            text = reader.read()
-        return cls.from_dict(json.loads(text))
-
-    def to_dict(self):
-        """Serializes this instance to a Python dictionary."""
-        output = copy.deepcopy(self.__dict__)
-        return output
-
-    def to_json_string(self):
-        """Serializes this instance to a JSON string."""
-        return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
-
-
-
 class BasicNerModel():
-    def __init__(self,ner_config):
-        self.num_tags = ner_config.num_tags
-        self.vocab_size = ner_config.vocab_size
-        self.embedding_size = ner_config.embedding_size
-        self.hidden_size = ner_config.hidden_size
-        self.max_seq_length = ner_config.max_seq_length
-        self.learning_rate = ner_config.learning_rate
-
-        self.output_path = ner_config.output_path
-
-        self.evaluate_every_steps = ner_config.evaluate_every_steps
-
-        self.train_total_steps = ner_config.train_total_steps
-        self.dropout = ner_config.dropout_prob
+    def __init__(self,params):
+        self.params = params
 
 
 
@@ -108,7 +40,7 @@ class BasicNerModel():
     def create_model(self,input_x,dropout,already_embedded=False,real_sentence_length=None):
         if not already_embedded:
             with tf.variable_scope('embeddings_layer'):
-                word_embeddings = tf.get_variable('word_embeddings', [self.vocab_size, self.embedding_size])
+                word_embeddings = tf.get_variable('word_embeddings', [self.params.vocab_size, self.params.embedding_size])
                 input_embeddings = tf.nn.embedding_lookup(word_embeddings, input_x)
             real_sentence_length = self.get_setence_length(input_x)
         else:
@@ -119,8 +51,7 @@ class BasicNerModel():
         logits = self.project_layer(model_output)
 
         trans = tf.get_variable('transitions',
-                                     shape=[self.num_tags,self.num_tags],
-                                     initializer=initializers.xavier_initializer())
+                                     shape=[self.params.num_tags,self.params.num_tags],)
         return logits,real_sentence_length,trans
 
     def model_layer(self, model_inputs, dropout,sequence_length=None):
@@ -134,13 +65,13 @@ class BasicNerModel():
                 """
         with  tf.variable_scope('project' if not name else name):
             with tf.variable_scope('hidden'):
-                hidden_output = layers.fully_connected(model_outputs,self.hidden_size,activation_fn=tf.tanh)
+                hidden_output = layers.fully_connected(model_outputs,self.params.hidden_size,activation_fn=tf.tanh)
 
             # project to score of tags
             with tf.variable_scope('logits'):
-                pred = layers.fully_connected(hidden_output,self.num_tags,activation_fn=None)
+                pred = layers.fully_connected(hidden_output,self.params.num_tags,activation_fn=None)
 
-            return tf.reshape(pred,[-1,self.max_seq_length,self.num_tags])
+            return tf.reshape(pred,[-1,self.params.max_sentence_length,self.params.num_tags])
 
 
 
@@ -156,7 +87,7 @@ class BasicNerModel():
             globalStep = tf.Variable(0, name="globalStep", trainable=False)
             with tf.variable_scope('loss'):
                 loss = self.crf_layer_loss(logits,input_y,real_sentence_length,trans)
-                optimizer = tf.train.AdamOptimizer(self.learning_rate)
+                optimizer = tf.train.AdamOptimizer(self.params.learning_rate)
 
                 grads_and_vars = optimizer.compute_gradients(loss)
                 trainOp = optimizer.apply_gradients(grads_and_vars, globalStep)
@@ -173,16 +104,16 @@ class BasicNerModel():
             sess.run(tf.global_variables_initializer())
             steps = 0
 
-            tf_save_path = os.path.join(self.output_path, 'tf')
+            tf_save_path = os.path.join(self.params.output_path, 'tf')
             try:
                 best_f1 = 0
-                for _ in tqdm.tqdm(range(self.train_total_steps), desc="steps", miniters=10):
+                for _ in tqdm.tqdm(range(self.params.total_train_steps), desc="steps", miniters=10):
                     sess_loss, predict_var, steps, _,real_sentence,input_y_val  = sess.run(
                         [loss, pred_ids, globalStep, trainOp,real_sentence_length,input_y],
-                        feed_dict={dropout: self.dropout}
+                        feed_dict={dropout: 0.8}
                     )
 
-                    if steps % self.evaluate_every_steps == 0:
+                    if steps % self.params.evaluate_every_steps == 0:
                         train_labels = []
                         predict_labels = []
                         for train_, predict_,len_ in zip(input_y_val, predict_var,real_sentence):
@@ -193,7 +124,7 @@ class BasicNerModel():
 
                         if f1_val > best_f1:
                             saver.save(sess, tf_save_path, steps)
-                            print("new best f1: %s ,save to dir:%s" % (f1_val,self.output_path))
+                            print("new best f1: %s ,save to dir:%s" % (f1_val,self.params.output_path))
                             best_f1 = f1_val
             except tf.errors.OutOfRangeError:
                 print("training end")
@@ -207,7 +138,7 @@ class BasicNerModel():
 
             sess = tf.Session(config=session_conf,graph=graph)
             with sess.as_default():
-                input_x = tf.placeholder(dtype=tf.int32,shape=(None,self.max_seq_length),name=constant.INPUT_NODE_NAME)
+                input_x = tf.placeholder(dtype=tf.int32,shape=(None,self.params.max_sentence_length),name=constant.INPUT_NODE_NAME)
                 dropout = tf.placeholder_with_default(1.0,shape=(), name='dropout')
                 logits,real_sentence_length,trans = self.create_model(input_x, dropout)
                 pred_ids, _ = crf.crf_decode(potentials=logits, transition_params=trans,

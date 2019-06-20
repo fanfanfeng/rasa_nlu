@@ -25,17 +25,17 @@ from rasa.nlu.model import Metadata
 from rasa.nlu.training_data import Message
 
 from rasa.nlu.extractors.tf_utils import data_process
-from rasa.nlu.extractors.tf_models.base_ner_model import NerConfig
 from rasa.nlu.extractors.tf_models.bilstm import BiLSTM
 from rasa.nlu.extractors.tf_models.idcnn import IdCnn
 from rasa.nlu.extractors.tf_models import constant
 from rasa.nlu.extractors.tf_models.bert_ner_model import BertNerModel
 from rasa.nlu.extractors.tf_models.base_ner_model import BasicNerModel
-from rasa.nlu.extractors.tf_utils.data_utils import input_fn,make_tfrecord_files,pad_sentence
+from rasa.nlu.extractors.tf_utils.data_utils import input_fn,make_tfrecord_files
 from rasa.nlu.extractors.tf_utils.bert_data_utils import input_fn as bert_input_fn
 from rasa.nlu.extractors.tf_utils.bert_data_utils import make_tfrecord_files as bert_make_tfrecord_files
 from rasa.third_models.bert import modeling as bert_modeling
 import shutil
+from rasa.nlu.extractors.tf_models.params import Params,TestParams
 
 
 
@@ -81,38 +81,34 @@ class TfEntityExtractor(EntityExtractor):
         if self.vocabulary_list != None:
             self.vocabulary = {key: index for index, key in enumerate(self.vocabulary_list)}
 
-    def normal_train(self,args):
-        if args.data_type == 'default':
-            data_processer = data_process.NormalData(args.origin_data, output_path=args.output_path)
+    def normal_train(self,params):
+        if params.data_type == 'default':
+            data_processer = data_process.NormalData(params.origin_data, output_path=params.output_path)
         else:
-            data_processer = data_process.RasaData(args.origin_data, output_path=args.output_path)
+            data_processer = data_process.RasaData(params.origin_data, output_path=params.output_path)
 
         vocab, self.vocab_list, self.labels_list = data_processer.load_vocab_and_labels()
 
-        ner_config = NerConfig(vocab_size=len(self.vocab_list), num_tags=len(self.labels_list), max_seq_length=args.max_sentence_len)
-        ner_config.output_path = args.output_path
-        if not os.path.exists(ner_config.output_path):
-            os.makedirs(ner_config.output_path)
+        params.vocab_size = len(self.vocab_list)
+        params.num_tags = len(self.labels_list)
+        if not os.path.exists(params.output_path):
+            os.makedirs(params.output_path)
 
-        os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+        os.environ["CUDA_VISIBLE_DEVICES"] = params.device_map
         with tf.Graph().as_default():
-            training_input_x, training_input_y = input_fn(os.path.join(args.output_path, 'train.tfrecord'),
+            training_input_x, training_input_y = input_fn(os.path.join(params.output_path, 'train.tfrecord'),
+                                                          shuffle_num=params.shuffle_num,
                                                           mode=tf.estimator.ModeKeys.TRAIN,
-                                                          batch_size=ner_config.batch_size,
-                                                          max_sentence_length=ner_config.max_seq_length,
+                                                          batch_size=params.batch_size,
+                                                          max_sentence_length=params.max_sentence_length,
                                                           )
-            if args.ner_type == "idcnn":
-                ner_config.filter_width = 3
-                ner_config.num_filter = ner_config.hidden_size
-                ner_config.repeat_times = 4
-                classify_model = IdCnn(ner_config)
+            if params.ner_type == "idcnn":
+                classify_model = IdCnn(params)
             else:
-                ner_config.cell_type = 'lstm'
-                ner_config.bilstm_layer_nums = 2
-                classify_model = BiLSTM(ner_config)
+                classify_model = BiLSTM(params)
             classify_model.train(training_input_x, training_input_y)
 
-            self.component_config['pb_path'] = classify_model.make_pb_file(ner_config.output_path)
+            self.component_config['pb_path'] = classify_model.make_pb_file(params.output_path)
 
     def bert_train(self,args):
         os.environ['CUDA_VISIBLE_DEVICES'] = args.device_map
@@ -159,17 +155,19 @@ class TfEntityExtractor(EntityExtractor):
 
 
     def train(self, training_data, config, **kwargs):
-        component_config_bject = DictToObject(self.component_config)
-        if not os.path.exists(component_config_bject.output_path):
-            os.mkdir(component_config_bject.output_path)
+        params = Params()
+        params.update_dict(self.component_config)
 
-        if component_config_bject.use_bert:
+        if not os.path.exists(params.output_path):
+            os.mkdir(params.output_path)
+
+        if params.use_bert:
             # bert_make_tfrecord_files(argument_dict)
             # bert_train(argument_dict)
             pass
         else:
-            make_tfrecord_files(component_config_bject)
-            self.normal_train(component_config_bject)
+            make_tfrecord_files(params)
+            self.normal_train(params)
 
     def result_to_json(self,string, tags):
         item = {

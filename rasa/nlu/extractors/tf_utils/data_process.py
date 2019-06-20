@@ -17,7 +17,7 @@ class NormalData():
             for file in os.listdir(itention_path):
                 with open(os.path.join(itention_path,file), 'r', encoding='utf-8') as fr:
                     for line in fr:
-                        yield line.strip().split(" "),None
+                        yield line.strip().split(" ")
 
     def getTotalfiles(self):
         total_file = []
@@ -32,7 +32,8 @@ class NormalData():
     def load_single_file(self,file):
         with open(file, 'r', encoding='utf-8') as fr:
             for line in fr:
-                yield line.strip().split(" "),None
+                tokens = [token for token in line.strip().split(" ") if token != ""]
+                yield tokens
 
 
 
@@ -79,17 +80,18 @@ class NormalData():
 
         return {key: index for index, key in enumerate(vocab_list)}, vocab_list, labels
 
-
 class RasaData():
     def __init__(self,folder,min_freq=1,output_path=None):
         self._START_VOCAB = ['_PAD', '_GO', "_EOS", '<UNK>']
         self.folder_path = folder
         self.output_path = output_path
+        self.train_folder = os.path.join(self.folder_path, 'train')
+        self.test_folder = os.path.join(self.folder_path, 'test')
 
-    def load_data(self):
-        total_file = self.getTotalfiles()
+    def load_folder_data(self,folder_path):
+        total_files = self.getTotalfiles(folder_path)
 
-        for file in tqdm.tqdm(total_file):
+        for file in tqdm.tqdm(total_files):
             with open(file, 'r', encoding='utf-8') as fr:
                 data = json.load(fr)
                 for item in data['rasa_nlu_data']['common_examples']:
@@ -97,42 +99,45 @@ class RasaData():
                     label_list = self._predata(item['text'],entity_offsets)
                     yield list(item['text']), label_list
 
-    def getTotalfiles(self):
-        total_file = []
-        if os.path.isfile(self.folder_path):
-            total_file.append(self.folder_path)
+    def getTotalfiles(self,folder_path):
+        files = []
+        if os.path.isfile(folder_path):
+            files.append(folder_path)
         else:
-            for file in os.listdir(self.folder_path):
-                total_file.append(os.path.join(self.folder_path, file))
-        return total_file
+            for file in os.listdir(folder_path):
+                files.append(os.path.join(folder_path, file))
+        random.shuffle(files)
+        return files
 
 
-    def load_single_file(self,file):
-        with open(file, 'r', encoding='utf-8') as fr:
-            data = json.load(fr)
-            for item in data['rasa_nlu_data']['common_examples']:
-                entity_offsets = self._convert_example(item)
-                label_list = self._predata(item['text'], entity_offsets)
-                yield list(item['text']), label_list
 
 
 
     def create_vocab_dict(self):
         vocab = {}
         label_list = set()
-        for line,labels in self.load_data():
-            for token in line:
-                if token in vocab:
-                    vocab[token] += 1
+        for line, labels in self.load_folder_data(self.train_folder):
+            for word,label in zip(line,labels):
+                if word in vocab:
+                    vocab[word] += 1
                 else:
-                    vocab[token] = 1
-            label_list.update(labels)
+                    vocab[word] = 1
+                label_list.add(label)
 
-        vocab = {key: value for key, value in vocab.items()}
+        for line, labels in self.load_folder_data(self.test_folder):
+            for word, label in zip(line, labels):
+                if word in vocab:
+                    vocab[word] += 1
+                else:
+                    vocab[word] = 1
+                label_list.add(label)
+
+        vocab = {key: value for key, value in vocab.items() }
         vocab_list = self._START_VOCAB + sorted(vocab, key=vocab.get, reverse=True)
         vocab_dict = {key: index for index, key in enumerate(vocab_list)}
         label_list = list(label_list)
-
+        label_list.remove("O")
+        label_list = ["O"]+label_list
         if self.output_path != None:
             with open(os.path.join(self.output_path, "vocab.txt"), 'w', encoding='utf-8') as fwrite:
                 for word in vocab_list:
@@ -171,12 +176,14 @@ class RasaData():
         bilou = [value for _ in text]
 
 
-        text = text.rstrip()
         for (start, end, entity) in entity_offsets:
             if start is not None and end is not None:
                 bilou[start] = 'B-' + entity
                 for i in range(start + 1, end):
                     bilou[i] = 'I-' + entity
+
+
+
         return bilou
 
 
