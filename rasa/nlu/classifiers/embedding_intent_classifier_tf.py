@@ -217,7 +217,7 @@ class EmbeddingIntentClassifierTf(Component):
             # get features (bag of words) for a message
             # noinspection PyPep8Naming
             X = [token.text for token in message.data.get('tokens')]
-            X_ids = np.array(self.pad_sentence(X,50,self.vocabulary)).reshape((1,50))
+            X_ids = np.array(self.pad_sentence(X,self.component_config['max_sentence_length'],self.vocabulary)).reshape((1,self.component_config['max_sentence_length']))
 
             intent_pre = self.sess.run(self.output_node,feed_dict={self.input_node:X_ids})
             intent_pre = intent_pre.tolist()

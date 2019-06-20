@@ -252,7 +252,7 @@ class TfEntityExtractor(EntityExtractor):
             predict_ids = predict_ids[0].tolist()[1:text_len - 1]
         else:
             words = list(text)
-            tokens = np.array(self.pad_sentence(words, component_config_object.max_sentence_len, self.vocabulary)).reshape((1, component_config_object.max_sentence_len))
+            tokens = np.array(self.pad_sentence(words, component_config_object.max_sentence_length, self.vocabulary)).reshape((1, component_config_object.max_sentence_length))
 
             predict_ids = self.sess.run(self.output_node, feed_dict={self.input_node: tokens})
             predict_ids = predict_ids[0].tolist()[:len(words)]

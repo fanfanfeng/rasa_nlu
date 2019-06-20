@@ -97,6 +97,14 @@ def input_fn(tf_record_filename,batch_size, shuffle_num,max_sentence_length,mode
 
 
 def make_tfrecord_files(params):
+    # tfrecore 文件写入
+    tfrecord_save_path = os.path.join(params.output_path, "train.tfrecord")
+    # tfrecore 文件写入
+    tfrecord_test_path = os.path.join(params.output_path, "test.tfrecord")
+
+    if os.path.exists(tfrecord_save_path):
+        return
+
     if params.data_type == 'default':
         data_processer = data_process.NormalData(params.origin_data,output_path=params.output_path)
     else:
@@ -108,12 +116,8 @@ def make_tfrecord_files(params):
         vocab,vocab_list,labels = data_processer.create_vocab_dict()
 
     labels_ids = {key:index for index,key in enumerate(labels)}
-    # tfrecore 文件写入
-    tfrecord_save_path = os.path.join(params.output_path,"train.tfrecord")
-    tfrecord_train_writer = tf.python_io.TFRecordWriter(tfrecord_save_path)
 
-    # tfrecore 文件写入
-    tfrecord_test_path = os.path.join(params.output_path, "test.tfrecord")
+    tfrecord_train_writer = tf.python_io.TFRecordWriter(tfrecord_save_path)
     tfrecord_test_writer = tf.python_io.TFRecordWriter(tfrecord_test_path)
 
     if params.data_type == 'default':
