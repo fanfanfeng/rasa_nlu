@@ -228,7 +228,7 @@ class TfEntityExtractor(EntityExtractor):
         idx = 0
         for char, tag in zip(string, tags):
             if current_entity_type != "" and tag != "O":
-                new_entity_type = tag.replace("B_","").replace("I_","")
+                new_entity_type = tag.replace("B-","").replace("I-","")
                 if new_entity_type != current_entity_type:
                     item["entities"].append(
                         {"value": entity_name, "start": entity_start, "end": idx, "entity": current_entity_type})
@@ -238,10 +238,10 @@ class TfEntityExtractor(EntityExtractor):
             if tag[0] == "B":
                 entity_name += char
                 entity_start = idx
-                current_entity_type = tag.replace("B_","")
+                current_entity_type = tag.replace("B-","")
             elif tag[0] == "I":
                 entity_name += char
-                current_entity_type = tag.replace("I_", "")
+                current_entity_type = tag.replace("I-", "")
             else:
                 if current_entity_type != "":
                     item["entities"].append(
