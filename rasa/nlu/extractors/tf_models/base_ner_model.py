@@ -1,17 +1,9 @@
 # create by fanfan on 2019/4/18 0018
 import os
-import tqdm
 import tensorflow as tf
-from tensorflow.contrib.layers.python.layers import initializers
 from tensorflow.contrib import crf
 from tensorflow.contrib import layers
-from sklearn.metrics import f1_score
-
 from rasa.nlu.extractors.tf_models import constant
-import six
-import json
-import copy
-
 
 class BasicNerModel():
     def __init__(self,params):

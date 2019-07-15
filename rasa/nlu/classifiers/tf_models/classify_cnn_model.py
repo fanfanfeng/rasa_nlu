@@ -15,7 +15,7 @@ class ClassifyCnnModel(BaseClassifyModel):
         self.num_filters = 128
         self.filter_sizes = [2, 3, 4, 5]
 
-    def classify_layer(self, input_embedding,dropout):
+    def classify_layer(self, input_embedding,dropout,real_sentence_length=None):
         input_embedding_expand = tf.expand_dims(input_embedding, -1)
 
         # 创建卷积和池化层
@@ -53,11 +53,7 @@ class ClassifyCnnModel(BaseClassifyModel):
             self.h_drop = tf.nn.dropout(self.h_poolflat,dropout)
 
         h_dense = tf.layers.dense(self.h_drop, numFilterTotal, activation=tf.nn.tanh, use_bias=True)
-
-        with tf.name_scope("output"):
-            logits = tf.layers.dense(h_dense,self.params.num_tags)
-
-        return logits
+        return h_dense
 
     def make_pb_file(self,model_dir):
         graph = tf.Graph()

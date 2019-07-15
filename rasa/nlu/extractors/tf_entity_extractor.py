@@ -210,8 +210,8 @@ class TfEntityExtractor(EntityExtractor):
             os.mkdir(params.output_path)
 
         if params.use_bert:
-            # bert_make_tfrecord_files(argument_dict)
-            # bert_train(argument_dict)
+            bert_make_tfrecord_files(params)
+            bert_train(argument_dict)
             pass
         else:
             make_tfrecord_files(params)

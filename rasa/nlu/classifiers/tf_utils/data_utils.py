@@ -6,7 +6,6 @@ import os
 import sys
 import tensorflow as tf
 from rasa.nlu.classifiers.tf_utils.data_process import RasaData,NormalData
-import threading
 from rasa.nlu.utils.tfrecord_api import _int64_feature
 
 _START_VOCAB = ['_PAD', '_GO', "_EOS", '<UNK>']

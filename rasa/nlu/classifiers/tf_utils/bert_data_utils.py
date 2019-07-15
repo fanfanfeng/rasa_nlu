@@ -1,10 +1,10 @@
 # create by fanfan on 2019/4/22 0022
-from rasa.nlu.extractors.tf_utils import bert_data_process
+from rasa.nlu.classifiers.tf_utils import bert_data_process
 from rasa.nlu.utils.tfrecord_api import _int64_feature
 import tensorflow as tf
 import os
 
-def pad_sentence(sentence, max_sentence_length,vocabulary,label_dict):
+def pad_sentence(sentence, max_sentence_length,vocabulary):
     '''
     对batch中的序列进行补全，保证batch中的每行都有相同的sequence_length
 
@@ -12,39 +12,34 @@ def pad_sentence(sentence, max_sentence_length,vocabulary,label_dict):
     - sentence
     '''
     tokens = []
-    labels = []
     for token in sentence:
         word_and_type = token.split("\\")
         tokens.append(word_and_type[0])
-        if len(word_and_type) == 2:
-            labels.append(word_and_type[1])
-        else:
-            labels.append('O')
 
             # 序列截断
     if len(tokens) >= max_sentence_length - 1:
         tokens = tokens[0:(max_sentence_length - 2)]
-        labels = labels[0:(max_sentence_length - 2)]
+
 
     ntokens = []
     segment_ids = []
-    label_ids = []
+
 
     # 加第一个开始字符
     ntokens.append('[CLS]')
     segment_ids.append(0)
-    label_ids.append(label_dict["[CLS]"])
+
 
     ## 整个句子转换
     for i,token in enumerate(tokens):
         ntokens.append(token)
         segment_ids.append(0)
-        label_ids.append(label_dict[labels[i]])
+
 
     # 句尾添加[SEP] 标志
     ntokens.append('[SEP]')
     segment_ids.append(0)
-    label_ids.append(0)
+
 
 
     unk_id = vocabulary.get('[UNK]')
@@ -58,74 +53,13 @@ def pad_sentence(sentence, max_sentence_length,vocabulary,label_dict):
         segment_ids.append(0)
 
         # we don't concerned about it!
-        label_ids.append(0)
         ntokens.append("**NULL**")
 
     assert len(input_ids) == max_sentence_length
     assert len(input_mask) == max_sentence_length
     assert len(segment_ids) == max_sentence_length
-    assert len(label_ids) == max_sentence_length
 
-    return input_ids,label_ids,segment_ids,input_mask
-
-
-def pad_sentence_rasa(sentence,labels, max_sentence_length,vocabulary,label_dict):
-    '''
-    对batch中的序列进行补全，保证batch中的每行都有相同的sequence_length
-
-    参数：
-    - sentence
-    '''
-
-
-    tokens = sentence
-    labels = labels
-    if len(tokens) >= max_sentence_length - 1:
-        tokens = tokens[0:(max_sentence_length - 2)]
-        labels = labels[0:(max_sentence_length - 2)]
-
-    ntokens = []
-    segment_ids = []
-    label_ids = []
-
-    # 加第一个开始字符
-    ntokens.append('[CLS]')
-    segment_ids.append(0)
-    label_ids.append(0)
-
-    ## 整个句子转换
-    for i,token in enumerate(tokens):
-        ntokens.append(token)
-        segment_ids.append(0)
-        label_ids.append(label_dict[labels[i]])
-
-    # 句尾添加[SEP] 标志
-    ntokens.append('[SEP]')
-    segment_ids.append(0)
-    label_ids.append(0)
-
-
-    unk_id = vocabulary.get('[UNK]')
-    input_ids = [vocabulary.get(token,unk_id) for token in ntokens]
-    input_mask = [1] * len(input_ids)
-
-
-    while len(input_ids) < max_sentence_length:
-        input_ids.append(0)
-        input_mask.append(0)
-        segment_ids.append(0)
-
-        # we don't concerned about it!
-        label_ids.append(0)
-        ntokens.append("**NULL**")
-
-    assert len(input_ids) == max_sentence_length
-    assert len(input_mask) == max_sentence_length
-    assert len(segment_ids) == max_sentence_length
-    assert len(label_ids) == max_sentence_length
-
-    return input_ids,label_ids,segment_ids,input_mask
-
+    return input_ids,segment_ids,input_mask
 
 def make_tfrecord_files(params):
     # tfrecore 文件写入
@@ -135,12 +69,13 @@ def make_tfrecord_files(params):
 
     if not os.path.exists(tfrecord_save_path):
         if params.data_type == 'default':
-            data_processer = bert_data_process.NormalData(params.origin_data, output_path=params.output_path)
+            data_processer = bert_data_process.NormalData(params.origin_data,output_path=params.output_path)
         else:
             data_processer = bert_data_process.RasaData(params.origin_data, output_path=params.output_path)
 
+
         if os.path.exists(os.path.join(params.output_path,'vocab.txt')):
-            vocab,vocab_list,labels = data_processer.load_vocab_and_labels()
+            vocab,vocab_list,labels = data_processer.load_vocab_and_intent()
         else:
             vocab,vocab_list,labels = data_processer.create_label_dict(bert_model_path=params.bert_model_path)
 
@@ -151,49 +86,60 @@ def make_tfrecord_files(params):
         labels_ids = {label:index for index,label in enumerate(labels)}
 
         if params.data_type == 'default':
-            for file in data_processer.getTotalfiles():
-                for index, sentence in enumerate(data_processer.load_single_file(file)):
-                    input_ids, label_ids, segment_ids, input_mask = pad_sentence(sentence, params.max_sentence_length,
-                                                                                 vocab, labels_ids)
+            for file ,folder_intent in data_processer.getTotalfiles():
+                for index,(sentence, intent) in enumerate(data_processer.load_single_file(file)):
+                    input_ids, segment_ids, input_mask = pad_sentence(sentence, params.max_sentence_length, vocab)
+                    # sentence_ids_string = np.array(sentence_ids).tostring()
+                    if folder_intent == "":
+                        intent_to_writer = intent
+                    else:
+                        intent_to_writer = folder_intent
+
                     feature_item = tf.train.Example(features=tf.train.Features(feature={
                         'input_ids': _int64_feature(input_ids, need_list=False),
-                        'label_ids': _int64_feature(label_ids, need_list=False),
+                        'label_ids': _int64_feature(labels_ids[intent_to_writer]),
                         'segment_ids': _int64_feature(segment_ids, need_list=False),
                         'input_mask': _int64_feature(input_mask, need_list=False)
                     }))
+
                     if index % 10 == 1:
                         tfrecord_test_writer.write(feature_item.SerializeToString())
                     else:
                         tfrecord_train_writer.write(feature_item.SerializeToString())
         else:
-            for sentence, sentence_labels in data_processer.load_folder_data(data_processer.train_folder):
-                input_ids, label_ids, segment_ids, input_mask = pad_sentence_rasa(sentence, sentence_labels,params.max_sentence_length, vocab, labels_ids)
+            for sentence,intent in data_processer.load_folder_data(data_processer.train_folder):
+                input_ids, segment_ids, input_mask = pad_sentence(sentence, params.max_sentence_length, vocab)
                 feature_item = tf.train.Example(features=tf.train.Features(feature={
                     'input_ids': _int64_feature(input_ids, need_list=False),
-                    'label_ids': _int64_feature(label_ids, need_list=False),
+                    'label_ids': _int64_feature(labels_ids[intent]),
                     'segment_ids': _int64_feature(segment_ids, need_list=False),
                     'input_mask': _int64_feature(input_mask, need_list=False)
                 }))
                 tfrecord_train_writer.write(feature_item.SerializeToString())
-            for sentence, sentence_labels in data_processer.load_folder_data(data_processer.test_folder):
-                input_ids, label_ids, segment_ids, input_mask = pad_sentence_rasa(sentence, sentence_labels,params.max_sentence_length, vocab, labels_ids)
+
+
+            for sentence,intent in data_processer.load_folder_data(data_processer.test_folder):
+                input_ids, segment_ids, input_mask = pad_sentence(sentence, params.max_sentence_length, vocab)
                 feature_item = tf.train.Example(features=tf.train.Features(feature={
                     'input_ids': _int64_feature(input_ids, need_list=False),
-                    'label_ids': _int64_feature(label_ids, need_list=False),
+                    'label_ids': _int64_feature(labels_ids[intent]),
                     'segment_ids': _int64_feature(segment_ids, need_list=False),
                     'input_mask': _int64_feature(input_mask, need_list=False)
                 }))
                 tfrecord_test_writer.write(feature_item.SerializeToString())
-        tfrecord_test_writer.close()
+
         tfrecord_train_writer.close()
+        tfrecord_test_writer.close()
 
 
-def input_fn(input_file,batch_size,max_sentence_length,mode=tf.estimator.ModeKeys.TRAIN):
+
+
+def input_fn(input_file,batch_size,max_sentence_length,shuffle_num,mode=tf.estimator.ModeKeys.TRAIN):
     name_to_features = {
         'input_ids':tf.FixedLenFeature([max_sentence_length],tf.int64),
         'input_mask':tf.FixedLenFeature([max_sentence_length],tf.int64),
         'segment_ids':tf.FixedLenFeature([max_sentence_length],tf.int64),
-        'label_ids':tf.FixedLenFeature([max_sentence_length],tf.int64)
+        'label_ids':tf.FixedLenFeature([],tf.int64)
     }
 
     def _decode_record(record):
@@ -209,7 +155,7 @@ def input_fn(input_file,batch_size,max_sentence_length,mode=tf.estimator.ModeKey
     if mode == tf.estimator.ModeKeys.TRAIN:
         print(mode)
         tf_record_reader = tf_record_reader.repeat()
-        tf_record_reader = tf_record_reader.shuffle(buffer_size=batch_size*1000)
+        tf_record_reader = tf_record_reader.shuffle(buffer_size=shuffle_num)
     dataset = tf_record_reader.apply(tf.data.experimental.map_and_batch(lambda record:_decode_record(record),
                                                    batch_size,num_parallel_calls=8))
     #if mode == tf.estimator.ModeKeys.TRAIN:

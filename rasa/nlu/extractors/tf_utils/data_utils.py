@@ -104,9 +104,8 @@ def make_tfrecord_files(params):
 
     if os.path.exists(tfrecord_save_path):
         return
-
     if params.data_type == 'default':
-        data_processer = data_process.NormalData(params.origin_data,output_path=params.output_path)
+        data_processer = data_process.NormalData(params.origin_data, output_path=params.output_path)
     else:
         data_processer = data_process.RasaData(params.origin_data, output_path=params.output_path)
 
@@ -132,7 +131,7 @@ def make_tfrecord_files(params):
                 if index % 10 == 1:
                     tfrecord_test_writer.write(feature_item.SerializeToString())
                 else:
-                    tfrecord_test_writer.write(feature_item.SerializeToString())
+                    tfrecord_train_writer.write(feature_item.SerializeToString())
     else:
         for sentence, sentence_labels in data_processer.load_folder_data(data_processer.train_folder):
             sentence_ids,sentence_labels_ids = pad_sentence_rasa(sentence, sentence_labels,params.max_sentence_length, vocab,labels_ids)
