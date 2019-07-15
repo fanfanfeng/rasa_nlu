@@ -2,7 +2,6 @@
 import os
 import json
 import tqdm
-import jieba
 import random
 
 class NormalData():

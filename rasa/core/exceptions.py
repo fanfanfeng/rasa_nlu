@@ -1,5 +1,7 @@
+from rasa.exceptions import RasaException
 
-class RasaCoreException(Exception):
+
+class RasaCoreException(RasaException):
     """Basic exception for errors raised by Rasa Core."""
 
 

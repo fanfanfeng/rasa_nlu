@@ -121,7 +121,7 @@ def make_tfrecord_files(params):
     tfrecord_test_writer = tf.python_io.TFRecordWriter(tfrecord_test_path)
 
     if params.data_type == 'default':
-        for file, folder_intent in data_processer.getTotalfiles():
+        for file in data_processer.getTotalfiles():
             for index, sentence in enumerate(data_processer.load_single_file(file)):
                 sentence_ids, sentence_labels_ids = pad_sentence(sentence, params.max_sentence_length, vocab,
                                                                  labels_ids)

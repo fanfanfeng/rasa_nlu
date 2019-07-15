@@ -10,9 +10,7 @@ def add_config_arg(parser, nargs="*", **kwargs):
         '-c', '--config',
         type=str,
         nargs=nargs,
-        default="",
-        #efault=pkg_resources.resource_filename(__name__,
-        #                                         "../default_config.yml"),
+        default=pkg_resources.resource_filename(__name__,"../default_config.yml"),
         help="Policy specification yaml file.",
         **kwargs)
 
