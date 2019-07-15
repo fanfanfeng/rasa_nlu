@@ -75,9 +75,9 @@ def train(
     if isinstance(nlu_config, str):
         nlu_config = config.load(nlu_config)
 
-    # Ensure we are training a model that we can save in the end
-    # WARN: there is still a race condition if a model with the same name is
-    # trained in another subprocess
+        # Ensure we are training a model that we can save in the end
+        # WARN: there is still a race condition if a model with the same name is
+        # trained in another subprocess
     trainer = Trainer(nlu_config, component_builder)
     persistor = create_persistor(storage)
     if training_data_endpoint is not None:
@@ -86,7 +86,7 @@ def train(
         )
     else:
         training_data = load_data(data, nlu_config.language)
-    interpreter = trainer.train(training_data, path=path,project=project,fixed_model_name=fixed_model_name,**kwargs)
+    interpreter = trainer.train(training_data, **kwargs)
 
     if path:
         persisted_path = trainer.persist(path, persistor, fixed_model_name)
