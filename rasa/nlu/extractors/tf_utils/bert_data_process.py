@@ -1,6 +1,8 @@
 # create by fanfan on 2019/4/15 0015
 import os
 import random
+import tqdm
+import json
 
 class NormalData():
     def __init__(self,folder,output_path=None):
