@@ -79,7 +79,7 @@ class BertNerModel(object):
             tf_save_path = os.path.join(self.params.output_path, 'tf')
             #try:
             best_f1 = 0
-            for _ in tqdm.tqdm(range(40000), desc="steps", miniters=10):
+            for _ in tqdm.tqdm(range(self.params.total_train_steps), desc="steps", miniters=10):
                 sess_loss, predict_var, steps, _, real_sentence, input_y_val = sess.run(
                     [loss, pred_ids, globalStep, trainOp, real_sentence_length, label_ids],
                     feed_dict={dropout: 0.8}
