@@ -26,6 +26,7 @@ from rasa.nlu.classifiers.tf_models.classify_cnn_model import ClassifyCnnModel
 from rasa.nlu.classifiers.tf_models.classify_bilstm_model import  ClassifyBilstmModel
 from rasa.nlu.classifiers.tf_models.classify_rcnn_model import ClassifyRcnnModel
 from rasa.nlu.classifiers.tf_models.bert_classify_model import BertClassifyModel
+from rasa.nlu.classifiers.tf_models.classify_ensemble_model import ClassifyEnsembleModel
 from rasa.nlu.classifiers.tf_models import constant
 from rasa.nlu.classifiers.tf_utils import data_utils,data_process
 from rasa.nlu.classifiers.tf_utils import data_process
@@ -227,6 +228,8 @@ class EmbeddingIntentClassifierTf(Component):
                     classify_model = ClassifyBilstmModel(params)
                 elif params.category_type == "rcnn":
                     classify_model = ClassifyRcnnModel(params)
+                elif params.category_type == 'ensemble':
+                    classify_model = ClassifyEnsembleModel(params)
                 else:
                     raise ValueError("category_type error")
 
