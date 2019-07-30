@@ -109,7 +109,7 @@ class BertClassifyModel(object):
                 saver = tf.train.Saver(tf.global_variables(), max_to_keep=5)
                 self.model_restore(sess,saver)
 
-                output_graph_with_weight = tf.graph_util.convert_variables_to_constants(sess,sess.graph_def,[constant.OUTPUT_NODE_NAME])
+                output_graph_with_weight = tf.graph_util.convert_variables_to_constants(sess,sess.graph_def,[constant.OUTPUT_NODE_NAME,constant.OUTPUT_NODE_LOGIT])
 
                 with tf.gfile.GFile(os.path.join(model_dir,'classify.pb'),'wb') as gf:
                     gf.write(output_graph_with_weight.SerializeToString())
@@ -130,7 +130,7 @@ class BertClassifyModel(object):
 
         input_node = sess.graph.get_operation_by_name(constant.INPUT_NODE_NAME).outputs[0]
         input_mask_node = sess.graph.get_operation_by_name(constant.INPUT_MASK_NAME).outputs[0]
-        logit_node = sess.graph.get_operation_by_name(constant.OUTPUT_NODE_NAME).outputs[0]
+        logit_node = sess.graph.get_operation_by_name(constant.OUTPUT_NODE_LOGIT).outputs[0]
         return sess, input_node,input_mask_node, logit_node
 
 
