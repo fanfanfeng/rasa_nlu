@@ -165,11 +165,11 @@ class TfEntityExtractor(EntityExtractor):
         else:
             data_processer = data_process.RasaData(params.origin_data, output_path=params.output_path)
 
-        vocab, vocab_list, labels = data_processer.load_vocab_and_labels()
+        vocab, self.vocab_list, self.labels_list = data_processer.load_vocab_and_labels()
 
         bert_config = bert_modeling.BertConfig.from_json_file(os.path.join(params.bert_model_path, "bert_config.json"))
-        params.vocab_size = len(vocab_list)
-        params.num_tags = len(labels)
+        params.vocab_size = len(self.vocab_list)
+        params.num_tags = len(self.labels_list)
         if params.max_sentence_length > bert_config.max_position_embeddings:
             raise ValueError(
                 "Cannot use sequence length %d because the BERT model "
