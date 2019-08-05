@@ -275,16 +275,16 @@ class TfEntityExtractor(EntityExtractor):
 
 
         if component_config_object.use_bert:
-            words = ['[CLS]'] + list(text) + ['[SEP]']
-            tokens = np.array(self.pad_sentence(words, component_config_object.max_sentence_len, self.vocabulary)).reshape((1, component_config_object.max_sentence_len))
+            words = ['[CLS]'] + list(text.lower()) + ['[SEP]']
+            tokens = np.array(self.pad_sentence(words, component_config_object.max_sentence_length, self.vocabulary)).reshape((1, component_config_object.max_sentence_length))
             text_len = len(words)
             tokens_mask = []
-            for i in range(self.component_config_object.max_sentence_len):
+            for i in range(component_config_object.max_sentence_length):
                 if i < text_len:
                     tokens_mask.append(1)
                 else:
                     tokens_mask.append(0)
-            tokens_mask = np.array(tokens_mask).reshape((1, 50))
+            tokens_mask = np.array(tokens_mask).reshape((1, component_config_object.max_sentence_length))
             predict_ids = self.sess.run(self.output_node,
                                         feed_dict={self.input_node: tokens, self.input_node_mask: tokens_mask})
             predict_ids = predict_ids[0].tolist()[1:text_len - 1]
@@ -308,7 +308,12 @@ class TfEntityExtractor(EntityExtractor):
         if model_dir:
             save_model_path = os.path.join(model_dir, cls.name)
             pb_file_path = os.path.join(save_model_path,'ner.pb')
-            sess,input_node,output_node = BasicNerModel.load_model_from_pb(pb_file_path)
+
+            if meta['use_bert'] == 0:
+                sess, input_node, output_node = BasicNerModel.load_model_from_pb(pb_file_path)
+                input_mask_node = None
+            else:
+                sess, input_node, input_mask_node, output_node = BertNerModel.load_model_from_pb(pb_file_path)
 
             labels_list = []
             if os.path.exists(os.path.join(save_model_path,'label.txt')):
@@ -320,7 +325,7 @@ class TfEntityExtractor(EntityExtractor):
             with open(os.path.join(save_model_path, 'vocab.txt'), 'r', encoding='utf-8') as fr:
                 for line in fr:
                     vocabulary_list.append(line.strip())
-            return TfEntityExtractor(component_config=meta,vocabulary_list=vocabulary_list,labels_list=labels_list,sess=sess,input_node=input_node,output_node=output_node)
+            return TfEntityExtractor(component_config=meta,vocabulary_list=vocabulary_list,labels_list=labels_list,sess=sess,input_node=input_node,output_node=output_node,input_node_mask=input_mask_node)
 
     def persist(self,filename,model_dir):
         save_model_path = os.path.join(model_dir,self.name)

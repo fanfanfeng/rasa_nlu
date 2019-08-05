@@ -156,9 +156,10 @@ class EmbeddingIntentClassifierTf(Component):
                 classify_model.model_restore(sess, saver)
 
                 best_f1 = 0
-                for _ in tqdm.tqdm(range(params.total_train_steps), desc="steps", miniters=10):
+                for i in range(params.total_train_steps):
                     sess_loss, steps, _ = sess.run([loss, global_step, train_op])
-
+                    if i % 20 == 0:
+                        print("training step:%s ,loss: %s" % (steps,sess_loss))
                     if steps % params.evaluate_every_steps == 0:
                         test_input_dict = bert_input_fn(os.path.join(params.output_path, "test.tfrecord"),
                                                         params.batch_size,
@@ -313,7 +314,7 @@ class EmbeddingIntentClassifierTf(Component):
                 X_ids = np.array(self.pad_sentence(X,self.component_config['max_sentence_length'],self.vocabulary)).reshape((1,self.component_config['max_sentence_length']))
                 intent_pre = self.sess.run(self.output_node,feed_dict={self.input_node:X_ids})
             else:
-                X_ids,_,input_mask = bert_pad_sentence(X,self.component_config['max_sentence_length'],self.vocabulary)
+                X_ids,_,input_mask = bert_pad_sentence("".join(X),self.component_config['max_sentence_length'],self.vocabulary)
                 X_ids = np.array(X_ids).reshape((1,self.component_config['max_sentence_length']))
                 input_mask = np.array(input_mask).reshape((1,self.component_config['max_sentence_length']))
                 intent_pre = self.sess.run(self.output_node, feed_dict={self.input_node: X_ids,self.input_mask_node:input_mask})

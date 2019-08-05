@@ -104,6 +104,7 @@ class BertClassifyModel(object):
                 input_mask = tf.placeholder(dtype=tf.int32,shape=(None,self.params.max_sentence_length),name=constant.INPUT_MASK_NAME)
                 dropout = tf.placeholder_with_default(1.0,shape=(), name='dropout')
                 logits = self.create_model(input_ids, input_mask, segment_ids=None, is_training=False, dropout=dropout)
+                logits = tf.identity(logits, name=constant.OUTPUT_NODE_LOGIT)
                 pred_ids = tf.argmax(tf.nn.softmax(logits),axis=1,name=constant.OUTPUT_NODE_NAME)
 
                 saver = tf.train.Saver(tf.global_variables(), max_to_keep=5)
